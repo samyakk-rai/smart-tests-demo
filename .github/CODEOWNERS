@@ -1,0 +1,11 @@
+# Default
+* @cloudbees-demo/notifications-platform
+
+# Channels
+src/main/java/com/cloudbees/demo/notifications/channels/ @cloudbees-demo/delivery
+
+# Templates
+src/main/java/com/cloudbees/demo/notifications/templates/ @cloudbees-demo/notifications-platform
+
+# CI
+.github/workflows/ @cloudbees-demo/devex

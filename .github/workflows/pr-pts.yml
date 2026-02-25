@@ -1,0 +1,87 @@
+# PR pipeline — uses Smart Tests predictive test selection (PTS) to run
+# only the most relevant subset of the test suite for each push, targeting
+# 50% of the original duration. This is the workflow that fires during the
+# story-led demo when the developer pushes the fix.
+name: pr-pts
+
+on:
+  push:
+    branches-ignore:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      LAUNCHABLE_TOKEN: ${{ secrets.LAUNCHABLE_TOKEN }}
+      LAUNCHABLE_ORGANIZATION: ${{ vars.LAUNCHABLE_ORGANIZATION }}
+      LAUNCHABLE_WORKSPACE: ${{ vars.LAUNCHABLE_WORKSPACE }}
+      PTS_TARGET: "50%"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+
+      - name: Set up Python (for Smart Tests CLI)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Smart Tests CLI
+        run: pip install --upgrade launchable
+
+      - name: Verify Smart Tests setup
+        run: launchable verify
+
+      - name: Record build
+        run: launchable record build --name "${GITHUB_SHA}"
+
+      - name: Record session (PTS)
+        id: session
+        run: |
+          SESSION=$(launchable record session \
+            --build "${GITHUB_SHA}" \
+            --flavor branch="${GITHUB_REF_NAME}" \
+            --flavor run=pr-pts)
+          echo "session=${SESSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Compile test sources
+        run: ./mvnw -B test-compile
+
+      - name: Generate PTS subset
+        run: |
+          launchable subset \
+            --session "${{ steps.session.outputs.session }}" \
+            --target "${PTS_TARGET}" \
+            maven src/test/java > target/pts-subset.txt
+          echo "---- selected tests ----"
+          wc -l target/pts-subset.txt
+          head -20 target/pts-subset.txt
+
+      - name: Run PTS-selected tests
+        run: |
+          TESTS=$(paste -sd, target/pts-subset.txt)
+          ./mvnw -B test -Dtest="${TESTS}" -DfailIfNoTests=false
+
+      - name: Upload results to Smart Tests
+        if: always()
+        run: |
+          launchable record tests \
+            --session "${{ steps.session.outputs.session }}" \
+            maven ./target/surefire-reports
