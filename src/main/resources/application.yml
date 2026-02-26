@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: notifications-api
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+notifications:
+  delivery:
+    max-attempts: 5
+    initial-backoff-ms: 250
+    max-backoff-ms: 30000
+  rate-limit:
+    default-per-minute: 60
+  channels:
+    email:
+      from: "noreply@example.com"
+    sms:
+      sender-id: "ACME"
+    webhook:
+      signing-algorithm: "HmacSHA256"
