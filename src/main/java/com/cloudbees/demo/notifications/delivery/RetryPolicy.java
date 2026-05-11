@@ -23,18 +23,21 @@ public class RetryPolicy {
     }
 
     public int maxAttempts(Tenant tenant) {
-        // BUG: relies on tenant.getDeliveryConfig() always being non-null.
-        // The per-tenant override is still rolling out (see CHANGELOG), so
-        // tenants without a config trip an NPE here.
-        return tenant.getDeliveryConfig().getMaxAttempts();
+        Tenant.DeliveryConfig cfg = tenant.getDeliveryConfig();
+        if (cfg != null && cfg.getMaxAttempts() != null) {
+            return cfg.getMaxAttempts();
+        }
+        return properties.getDelivery().getMaxAttempts();
     }
 
     public long calculateBackoffMs(Tenant tenant, int attemptNumber) {
         if (attemptNumber < 1) {
             throw new IllegalArgumentException("attemptNumber must be >= 1");
         }
-        // BUG: same as above — assumes per-tenant config is always set.
-        long initial = tenant.getDeliveryConfig().getInitialBackoffMs();
+        Tenant.DeliveryConfig cfg = tenant.getDeliveryConfig();
+        long initial = (cfg != null && cfg.getInitialBackoffMs() != null)
+                ? cfg.getInitialBackoffMs()
+                : properties.getDelivery().getInitialBackoffMs();
         long backoff = initial * (long) Math.pow(2, attemptNumber - 1);
         return Math.min(backoff, properties.getDelivery().getMaxBackoffMs());
     }

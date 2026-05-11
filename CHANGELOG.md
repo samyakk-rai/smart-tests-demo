@@ -1,6 +1,12 @@
 # Changelog
 
 ## [1.4.2-SNAPSHOT] — unreleased
+### Fixed
+- `RetryPolicy` no longer NPEs when a tenant's per-tenant `DeliveryConfig`
+  override is unset; falls back to the service default.
+- `TemplateEngine` variable pattern restored to accept underscores
+  (`{{order_id}}`, `{{reset_link}}`, `{{invoice_id}}`).
+
 ### Changed
 - Retry policy now reads max-attempts from per-tenant config (rolling out)
 - Template engine: tightened variable escaping for HTML contexts

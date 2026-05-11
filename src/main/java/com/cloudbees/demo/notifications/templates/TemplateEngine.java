@@ -9,18 +9,18 @@ import org.springframework.stereotype.Component;
 /**
  * Renders {@link Template} bodies and subjects with variable substitution.
  *
- * <p>Syntax: {@code {{variable}}} — variable names are alphanumeric.
+ * <p>Syntax: {@code {{variable}}} — variable names are alphanumeric plus
+ * underscore.
  *
  * <p>HTML-context strings are escaped by default (since v1.4.0).
  */
 @Component
 public class TemplateEngine {
 
-    // BUG: This pattern was tightened in v1.4.0 to harden the HTML escaping
-    // path, but the new character class lost underscore support — variables
-    // like {{order_id}} no longer match and the rendering loop trips on
-    // unresolved tokens.
-    private static final Pattern VAR_PATTERN = Pattern.compile("\\{\\{([a-zA-Z0-9]+)\\}\\}");
+    // Variable names are alphanumeric plus underscore. Restored in v1.4.2
+    // after the v1.4.0 escaping change inadvertently dropped underscore
+    // support — see CHANGELOG.
+    private static final Pattern VAR_PATTERN = Pattern.compile("\\{\\{([a-zA-Z0-9_]+)\\}\\}");
 
     public String render(String body, Map<String, Object> variables) {
         if (body == null) {
