@@ -48,13 +48,15 @@ demo activity. Work in your fork, push to your fork, run CI in your fork.
    git push origin fix/retry-and-template-bugs
    ```
 
-5. In your fork's repo settings → Secrets → Actions, add:
-   - `LAUNCHABLE_TOKEN` — Smart Tests API token for the seeded workspace
-6. In repo settings → Variables → Actions, add:
-   - `LAUNCHABLE_ORGANIZATION` — Smart Tests organization name
-   - `LAUNCHABLE_WORKSPACE` — Smart Tests workspace name (the seeded one)
+5. In your fork's repo settings → Secrets and variables → Actions, add a
+   single repository secret:
+   - `SMART_TESTS_TOKEN` — Smart Tests API token for the seeded workspace
+     (format: `v1:<org>/<workspace>:<key>`)
 
-7. Manually dispatch `nightly-full` once. This populates your Smart Tests
+   The organization and workspace are encoded in the token itself, so no
+   separate variables are needed. The CLI parses them out at runtime.
+
+6. Manually dispatch `nightly-full` once. This populates your Smart Tests
    workspace with the "last night's CI" session that the demo opens with.
    Confirm in the workspace that you see 10 failures clustered into 2
    issues under the Issues tab.
@@ -103,7 +105,7 @@ sleeps 10×.
 | --- | --- |
 | `pr-pts` run goes past 7 min | GitHub Actions queue is slow; demo lead falls back to a recorded green session in the workspace |
 | PTS subset misses the failing tests | Re-trigger `nightly-full` to refresh the model with the latest fail set, then re-push the fix branch |
-| Smart Tests CLI upload errors | Workspace token rotated; refresh `LAUNCHABLE_TOKEN` in repo secrets |
+| Smart Tests CLI upload errors | Workspace token rotated; refresh `SMART_TESTS_TOKEN` in repo secrets |
 | Live build fails to compile | Run `./mvnw -B test-compile` locally before the demo to catch JDK/dependency issues early |
 
 ## Useful commands
@@ -118,7 +120,18 @@ sleeps 10×.
 # Integration only, sped up 10×
 ./mvnw test -Dtest='*IntegrationTest' -Dlatency.scale=0.1
 
-# Inspect what PTS would select (requires `launchable` CLI auth'd locally)
+# Inspect what PTS would select (requires `smart-tests` CLI auth'd locally)
+export SMART_TESTS_TOKEN="v1:<org>/<workspace>:<key>"
+BUILD=$(git rev-parse HEAD)
+SESSION=local-$(date +%s)
 ./mvnw test-compile
-launchable subset --target 50% maven src/test/java
+smart-tests record build --build "$BUILD"
+smart-tests record session \
+  --build "$BUILD" \
+  --session "$SESSION" \
+  --test-suite notifications-api-local
+smart-tests subset maven \
+  --session "$SESSION" \
+  --target 50% \
+  src/test/java
 ```

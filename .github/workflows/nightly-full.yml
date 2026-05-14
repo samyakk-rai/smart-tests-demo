@@ -1,6 +1,9 @@
 # Full test suite — runs nightly on `main`. This is the "overnight run"
 # referenced in the story-led demo: developer arrives in the morning to
 # find 10 test failures from this workflow.
+#
+# Smart Tests integration follows the CI integration blueprint:
+# https://docs.cloudbees.com/docs/cloudbees-smart-tests/latest/references/onboarding-guide#ci-integration-blueprint
 name: nightly-full
 
 on:
@@ -17,14 +20,16 @@ jobs:
     timeout-minutes: 30
 
     env:
-      LAUNCHABLE_TOKEN: ${{ secrets.LAUNCHABLE_TOKEN }}
-      LAUNCHABLE_ORGANIZATION: ${{ vars.LAUNCHABLE_ORGANIZATION }}
-      LAUNCHABLE_WORKSPACE: ${{ vars.LAUNCHABLE_WORKSPACE }}
+      # Org + workspace are encoded in the token itself — no separate vars needed.
+      SMART_TESTS_TOKEN: ${{ secrets.SMART_TESTS_TOKEN }}
+      BUILD_NAME: ${{ github.sha }}
+      SESSION_NAME: nightly-${{ github.run_number }}
+      TEST_SUITE: notifications-api-nightly
 
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0      # full history so record build can walk commits
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -33,35 +38,38 @@ jobs:
           java-version: 17
           cache: maven
 
-      - name: Set up Python (for Smart Tests CLI)
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.13"
 
       - name: Install Smart Tests CLI
-        run: pip install --upgrade launchable
+        run: pip install --user --upgrade smart-tests
 
-      - name: Verify Smart Tests setup
-        run: launchable verify
+      - name: Verify Smart Tests CLI
+        # `|| true` per the docs — keeps a transient auth blip from breaking the run
+        run: smart-tests verify || true
 
       - name: Record build
-        run: launchable record build --name "${GITHUB_SHA}"
+        run: smart-tests record build --build "$BUILD_NAME"
 
-      - name: Record session (full)
-        id: session
+      - name: Record session
         run: |
-          SESSION=$(launchable record session \
-            --build "${GITHUB_SHA}" \
+          smart-tests record session \
+            --build "$BUILD_NAME" \
+            --session "$SESSION_NAME" \
+            --test-suite "$TEST_SUITE" \
             --flavor branch=main \
-            --flavor run=nightly-full)
-          echo "session=${SESSION}" >> "$GITHUB_OUTPUT"
+            --flavor run=nightly-full
 
       - name: Run full test suite
+        # Continue on test failures so we always reach the record-tests step.
         run: ./mvnw -B test
+        continue-on-error: true
 
       - name: Upload results to Smart Tests
         if: always()
         run: |
-          launchable record tests \
-            --session "${{ steps.session.outputs.session }}" \
-            maven ./target/surefire-reports
+          smart-tests record tests maven \
+            --session "$SESSION_NAME" \
+            ./target/surefire-reports
