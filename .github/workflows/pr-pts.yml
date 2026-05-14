@@ -71,7 +71,7 @@ jobs:
 
       - name: Compile test sources
         # Surefire/PTS need compiled test classes available before subsetting.
-        run: ./mvnw -B test-compile
+        run: mvn -B test-compile
 
       - name: Generate PTS subset
         run: |
@@ -86,7 +86,7 @@ jobs:
       - name: Run PTS-selected tests
         run: |
           TESTS=$(paste -sd, target/pts-subset.txt)
-          ./mvnw -B test -Dtest="${TESTS}" -DfailIfNoTests=false
+          mvn -B test -Dtest="${TESTS}" -DfailIfNoTests=false
         continue-on-error: true
 
       - name: Upload results to Smart Tests

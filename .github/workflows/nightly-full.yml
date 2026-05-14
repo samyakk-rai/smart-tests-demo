@@ -73,7 +73,7 @@ jobs:
 
       - name: Run full test suite
         # Continue on test failures so we always reach the record-tests step.
-        run: ./mvnw -B test
+        run: mvn -B test
         continue-on-error: true
 
       - name: Upload results to Smart Tests
