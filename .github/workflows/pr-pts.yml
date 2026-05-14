@@ -49,7 +49,9 @@ jobs:
           python-version: "3.13"
 
       - name: Install Smart Tests CLI
-        run: pip install --user --upgrade smart-tests
+        # PyPI package is `smart-tests-cli`; the installed binary is `smart-tests`.
+        # See https://pypi.org/project/smart-tests-cli/
+        run: pip install --user --upgrade smart-tests-cli
 
       - name: Verify Smart Tests CLI
         run: smart-tests verify || true

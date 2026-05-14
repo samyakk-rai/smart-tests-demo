@@ -41,10 +41,12 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: "3.13"      # smart-tests-cli requires Python >=3.13
 
       - name: Install Smart Tests CLI
-        run: pip install --user --upgrade smart-tests
+        # PyPI package is `smart-tests-cli`; the installed binary is `smart-tests`.
+        # See https://pypi.org/project/smart-tests-cli/
+        run: pip install --user --upgrade smart-tests-cli
 
       - name: Verify Smart Tests CLI
         # `|| true` per the docs — keeps a transient auth blip from breaking the run
