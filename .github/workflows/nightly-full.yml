@@ -4,6 +4,11 @@
 #
 # Smart Tests integration follows the CI integration blueprint:
 # https://docs.cloudbees.com/docs/cloudbees-smart-tests/latest/references/onboarding-guide#ci-integration-blueprint
+#
+# Note: the blueprint shows `record session --session NAME` and `record
+# tests --session NAME`, but smart-tests-cli v2.7.x doesn't accept
+# `--session` on record session — instead it PRINTS the session
+# reference. We capture stdout and pass that reference downstream.
 name: nightly-full
 
 on:
@@ -23,7 +28,6 @@ jobs:
       # Org + workspace are encoded in the token itself — no separate vars needed.
       SMART_TESTS_TOKEN: ${{ secrets.SMART_TESTS_TOKEN }}
       BUILD_NAME: ${{ github.sha }}
-      SESSION_NAME: nightly-${{ github.run_number }}
       TEST_SUITE: notifications-api-nightly
 
     steps:
@@ -49,20 +53,23 @@ jobs:
         run: pip install --user --upgrade smart-tests-cli
 
       - name: Verify Smart Tests CLI
-        # `|| true` per the docs — keeps a transient auth blip from breaking the run
         run: smart-tests verify || true
 
       - name: Record build
         run: smart-tests record build --build "$BUILD_NAME"
 
       - name: Record session
+        id: session
+        # `record session` prints the full session reference on stdout
+        # (e.g. builds/<build>/test_sessions/<id>). Capture it for the
+        # `record tests` step below.
         run: |
-          smart-tests record session \
+          SESSION=$(smart-tests record session \
             --build "$BUILD_NAME" \
-            --session "$SESSION_NAME" \
             --test-suite "$TEST_SUITE" \
             --flavor branch=main \
-            --flavor run=nightly-full
+            --flavor run=nightly-full)
+          echo "session=$SESSION" >> "$GITHUB_OUTPUT"
 
       - name: Run full test suite
         # Continue on test failures so we always reach the record-tests step.
@@ -70,8 +77,8 @@ jobs:
         continue-on-error: true
 
       - name: Upload results to Smart Tests
-        if: always()
+        if: always() && steps.session.outputs.session != ''
         run: |
-          smart-tests record tests maven \
-            --session "$SESSION_NAME" \
-            ./target/surefire-reports
+          smart-tests record tests \
+            --session "${{ steps.session.outputs.session }}" \
+            maven ./target/surefire-reports

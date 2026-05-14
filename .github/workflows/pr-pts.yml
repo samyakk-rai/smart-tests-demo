@@ -5,6 +5,9 @@
 #
 # Smart Tests integration follows the CI integration blueprint:
 # https://docs.cloudbees.com/docs/cloudbees-smart-tests/latest/references/onboarding-guide#ci-integration-blueprint
+#
+# Note: `record session` prints the session reference on stdout; we
+# capture it and pass it to subset/record-tests via `--session`.
 name: pr-pts
 
 on:
@@ -27,7 +30,6 @@ jobs:
     env:
       SMART_TESTS_TOKEN: ${{ secrets.SMART_TESTS_TOKEN }}
       BUILD_NAME: ${{ github.sha }}
-      SESSION_NAME: pr-${{ github.run_number }}
       TEST_SUITE: notifications-api-pr
       PTS_TARGET: "50%"
 
@@ -49,8 +51,6 @@ jobs:
           python-version: "3.13"
 
       - name: Install Smart Tests CLI
-        # PyPI package is `smart-tests-cli`; the installed binary is `smart-tests`.
-        # See https://pypi.org/project/smart-tests-cli/
         run: pip install --user --upgrade smart-tests-cli
 
       - name: Verify Smart Tests CLI
@@ -60,13 +60,14 @@ jobs:
         run: smart-tests record build --build "$BUILD_NAME"
 
       - name: Record session
+        id: session
         run: |
-          smart-tests record session \
+          SESSION=$(smart-tests record session \
             --build "$BUILD_NAME" \
-            --session "$SESSION_NAME" \
             --test-suite "$TEST_SUITE" \
             --flavor branch=${{ github.ref_name }} \
-            --flavor run=pr-pts
+            --flavor run=pr-pts)
+          echo "session=$SESSION" >> "$GITHUB_OUTPUT"
 
       - name: Compile test sources
         # Surefire/PTS need compiled test classes available before subsetting.
@@ -74,10 +75,10 @@ jobs:
 
       - name: Generate PTS subset
         run: |
-          smart-tests subset maven \
-            --session "$SESSION_NAME" \
+          smart-tests subset \
+            --session "${{ steps.session.outputs.session }}" \
             --target "$PTS_TARGET" \
-            src/test/java > target/pts-subset.txt
+            maven src/test/java > target/pts-subset.txt
           echo "---- selected tests ----"
           wc -l target/pts-subset.txt
           head -20 target/pts-subset.txt
@@ -89,8 +90,8 @@ jobs:
         continue-on-error: true
 
       - name: Upload results to Smart Tests
-        if: always()
+        if: always() && steps.session.outputs.session != ''
         run: |
-          smart-tests record tests maven \
-            --session "$SESSION_NAME" \
-            ./target/surefire-reports
+          smart-tests record tests \
+            --session "${{ steps.session.outputs.session }}" \
+            maven ./target/surefire-reports
