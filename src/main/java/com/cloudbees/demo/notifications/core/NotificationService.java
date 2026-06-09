@@ -104,6 +104,8 @@ public class NotificationService {
                         new DeliveryAttempt(attempt, start, end, false, result.getErrorMessage()));
                 audit.record(tenant.getId(), n.getId(), AuditEventType.DELIVERY_FAILED,
                         result.getErrorMessage());
+            } catch (ChannelException e) {
+                throw e;
             } catch (RuntimeException e) {
                 Instant end = Instant.now();
                 tracker.update(n.getId(), NotificationStatus.RETRYING,
